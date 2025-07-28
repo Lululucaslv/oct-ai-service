@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  daxiazhaoguang-ai:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - BASE_URL=${BASE_URL:-https://test.daxiazhaoguang.com/server/}
+      - DAXIA_API_TOKEN=${DAXIA_API_TOKEN}
+      - AUTHORIZATION_TOKEN=${AUTHORIZATION_TOKEN}
+      - USE_MOCK_DATA=${USE_MOCK_DATA:-False}
+    env_file:
+      - .env
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - daxiazhaoguang-network
+
+networks:
+  daxiazhaoguang-network:
+    driver: bridge
