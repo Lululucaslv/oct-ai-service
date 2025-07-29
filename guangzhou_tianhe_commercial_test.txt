@@ -1,0 +1,23 @@
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100    46    0     0  100    46      0     36  0:00:01  0:00:01 --:--:--    36data: {"chunk": "\\nAction: query_electricity_price", "type": "content"}
+
+data: {"chunk": "\\nAction Input: {\"city\": \"广州市\", \"price_type\": \"工商业电价\"}", "type": "content"}
+
+data: {"chunk": "Action: query_electricity_price\\nAction Input: {\"city\": \"广州市\", \"price_type\": \"工商业电价\"}", "type": "content"}
+
+data: {"chunk": "\\nAction: query_electricity_price", "type": "content"}
+
+data: {"chunk": "\\nAction Input: {\"city\": \"广州市\", \"price_type\": \"工商业电价\"}", "type": "content"}
+
+data: {"chunk": "\\nObservation: 电价查询失败：未查询到相关结果", "type": "content"}
+
+data: {"chunk": "\\nObservation: 电价查询失败：未查询到相关结果", "type": "content"}
+
+100   784    0   738  100    46    249     15  0:00:03  0:00:02  0:00:01   264data: {"chunk": "\\nFinal Answer: 很抱歉，我未能查询到广州市天河区的工商业电价信息。这可能是因为该区域的工商业电价数据暂未收录，或者查询工具无法提供如此细致的区域电价。", "type": "content"}
+
+data: {"chunk": "Final Answer: 很抱歉，我未能查询到广州市天河区的工商业电价信息。这可能是因为该区域的工商业电价数据暂未收录，或者查询工具无法提供如此细致的区域电价。", "type": "content"}
+
+data: {"type": "done"}
+
+100  1321    0  1275  100    46    338     12  0:00:03  0:00:03 --:--:--   351100  1321    0  1275  100    46    338     12  0:00:03  0:00:03 --:--:--   351

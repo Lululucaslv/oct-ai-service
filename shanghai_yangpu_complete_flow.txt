@@ -1,0 +1,15 @@
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0data: {"chunk": "Action: query_electricity_price\\nAction Input: {\"city\": \"上海\"}", "type": "content"}
+
+100   162    0   110  100    52     99     47  0:00:01  0:00:01 --:--:--   146data: {"chunk": "\\nObservation: 电价查询失败：无法从查询中识别出电价类型，请指定查询脱硫煤电价、上网电价或工商加权电价。", "type": "content"}
+
+100   350    0   298  100    52    141     24  0:00:02  0:00:02 --:--:--   165data: {"chunk": "Action: query_electricity_price\\nAction Input: {\"city\": \"上海\", \"price_type\": \"上网电价\"}", "type": "content"}
+
+data: {"chunk": "\\nObservation: 查询成功：上海市-浦东新区的上网电价为0.4155元/千瓦时。", "type": "content"}
+
+100   627    0   575  100    52    195     17  0:00:03  0:00:02  0:00:01   212data: {"chunk": "Final Answer: 上海市浦东新区的上网电价为0.4155元/千瓦时。", "type": "content"}
+
+data: {"type": "done"}
+
+100   766    0   714  100    52    203     14  0:00:03  0:00:03 --:--:--   218
