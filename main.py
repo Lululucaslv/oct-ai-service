@@ -1,5 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+import asyncio
+import json
 from electricity_price_tool import create_electricity_price_tool
 from power_generation_duration_tool import create_power_generation_duration_tool
 from photovoltaic_capacity_tool import create_photovoltaic_capacity_tool
@@ -76,13 +79,42 @@ async def query_policies(request: QueryRequest):
 
 @app.post("/ask_agent", response_model=QueryResponse)
 async def ask_agent(request: QueryRequest):
-    """智能问答接口 - 主路由Agent"""
+    """智能问答接口 - 主路由Agent (非流式)"""
     try:
         result = main_agent.query(request.query)
         success = not any(error_phrase in result for error_phrase in ["出现错误", "无法处理", "无法理解"])
         return QueryResponse(result=result, success=success)
     except Exception as e:
         return QueryResponse(result=f"系统错误: {str(e)}", success=False)
+
+@app.post("/ask_agent_stream")
+async def ask_agent_stream(request: QueryRequest):
+    """智能问答接口 - 主路由Agent (流式响应)"""
+    
+    async def generate_stream():
+        """Generate Server-Sent Events stream"""
+        try:
+            async for chunk in main_agent.query_stream(request.query):
+                if chunk:
+                    chunk_escaped = chunk.replace('\n', '\\n').replace('\r', '\\r')
+                    yield f"data: {json.dumps({'chunk': chunk_escaped, 'type': 'content'})}\n\n"
+                    
+            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+            
+        except Exception as e:
+            error_msg = f"系统错误: {str(e)}"
+            yield f"data: {json.dumps({'chunk': error_msg, 'type': 'error'})}\n\n"
+            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+    
+    return StreamingResponse(
+        generate_stream(),
+        media_type="text/plain",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "Content-Type": "text/event-stream",
+        }
+    )
 
 @app.get("/health")
 async def health_check():

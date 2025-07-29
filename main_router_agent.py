@@ -135,6 +135,34 @@ Thought: {agent_scratchpad}"""
         except Exception as e:
             return f"处理查询时出现错误：{str(e)}"
     
+    async def query_stream(self, user_input: str):
+        """Process user query and return streaming response."""
+        if not self.agent_executor:
+            mock_response = self._mock_query_response(user_input)
+            words = mock_response.split()
+            for i, word in enumerate(words):
+                if i == 0:
+                    yield word
+                else:
+                    yield f" {word}"
+            return
+        
+        try:
+            async for event in self.agent_executor.astream({"input": user_input}):
+                if isinstance(event, dict):
+                    if "agent" in event and "messages" in event["agent"]:
+                        for message in event["agent"]["messages"]:
+                            if hasattr(message, "content") and message.content:
+                                yield message.content
+                    elif "output" in event:
+                        yield event["output"]
+                    elif "intermediate_steps" in event:
+                        for step in event["intermediate_steps"]:
+                            if len(step) > 1 and step[1]:  # (action, observation)
+                                yield f"\n{step[1]}"
+        except Exception as e:
+            yield f"处理查询时出现错误：{str(e)}"
+    
     def _mock_query_response(self, user_input: str) -> str:
         """Mock response for testing without OpenAI API."""
         user_input_lower = user_input.lower()
