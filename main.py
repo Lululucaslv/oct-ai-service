@@ -97,22 +97,26 @@ async def ask_agent_stream(request: QueryRequest):
             async for chunk in main_agent.query_stream(request.query):
                 if chunk:
                     chunk_escaped = chunk.replace('\n', '\\n').replace('\r', '\\r')
-                    yield f"data: {json.dumps({'chunk': chunk_escaped, 'type': 'content'})}\n\n"
+                    data = json.dumps({'chunk': chunk_escaped, 'type': 'content'}, ensure_ascii=False)
+                    yield f"data: {data}\n\n".encode('utf-8')
                     
-            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+            done_data = json.dumps({'type': 'done'}, ensure_ascii=False)
+            yield f"data: {done_data}\n\n".encode('utf-8')
             
         except Exception as e:
             error_msg = f"系统错误: {str(e)}"
-            yield f"data: {json.dumps({'chunk': error_msg, 'type': 'error'})}\n\n"
-            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+            error_data = json.dumps({'chunk': error_msg, 'type': 'error'}, ensure_ascii=False)
+            yield f"data: {error_data}\n\n".encode('utf-8')
+            done_data = json.dumps({'type': 'done'}, ensure_ascii=False)
+            yield f"data: {done_data}\n\n".encode('utf-8')
     
     return StreamingResponse(
         generate_stream(),
-        media_type="text/plain",
+        media_type="text/event-stream; charset=utf-8",
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
-            "Content-Type": "text/event-stream",
+            "Content-Type": "text/event-stream; charset=utf-8",
         }
     )
 

@@ -121,7 +121,8 @@ Thought: {agent_scratchpad}"""
             tools=self.tools,
             verbose=True,
             handle_parsing_errors=True,
-            max_iterations=5
+            max_iterations=10,
+            max_execution_time=30
         )
     
     def query(self, user_input: str) -> str:

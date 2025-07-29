@@ -42,7 +42,7 @@ class ElectricityPriceTool(BaseTool):
             r'([^的在查询\s]+(?:省|市|区|县))',  # Basic province/city/district/county
             r'([^的在查询\s]+(?:自治区))',      # Autonomous regions
             r'([^的在查询\s]+(?:特别行政区))',   # Special administrative regions
-            r'(安徽淮南|河南开封|广东深圳|江苏苏州)',  # Common combined province-city patterns
+            r'(安徽淮南|河南开封|广东深圳|江苏苏州|安徽蚌埠)',  # Common combined province-city patterns
         ]
         
         for pattern in city_patterns:
@@ -61,6 +61,45 @@ class ElectricityPriceTool(BaseTool):
             location_words = re.findall(r'([^的在查询\s]+(?:省|市|区|县|自治区))', query)
             if location_words:
                 city = max(location_words, key=len)  # Take the longest match
+        
+        if not city:
+            common_cities = {
+                '蚌埠': '安徽省-蚌埠市',
+                '淮南': '安徽省-淮南市', 
+                '开封': '河南省-开封市',
+                '深圳': '广东省-深圳市',
+                '苏州': '江苏省-苏州市',
+                '杭州': '浙江省-杭州市',
+                '宁波': '浙江省-宁波市',
+                '青岛': '山东省-青岛市',
+                '大连': '辽宁省-大连市',
+                '厦门': '福建省-厦门市',
+                '广州': '广东省-广州市',
+                '上海': '上海市',
+                '北京': '北京市',
+                '天津': '天津市',
+                '重庆': '重庆市',
+                '南京': '江苏省-南京市',
+                '武汉': '湖北省-武汉市',
+                '成都': '四川省-成都市',
+                '西安': '陕西省-西安市',
+                '长沙': '湖南省-长沙市',
+                '郑州': '河南省-郑州市',
+                '济南': '山东省-济南市',
+                '合肥': '安徽省-合肥市',
+                '福州': '福建省-福州市',
+                '南昌': '江西省-南昌市',
+                '石家庄': '河北省-石家庄市',
+                '太原': '山西省-太原市',
+                '沈阳': '辽宁省-沈阳市',
+                '长春': '吉林省-长春市',
+                '哈尔滨': '黑龙江省-哈尔滨市'
+            }
+            
+            for bare_city, full_name in common_cities.items():
+                if bare_city in query:
+                    city = full_name
+                    break
         
         if city and len(city) >= 4 and '省' not in city and '市' not in city:
             if city.startswith('安徽'):
