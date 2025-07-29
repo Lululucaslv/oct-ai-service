@@ -10,6 +10,7 @@ from electricity_price_tool import create_electricity_price_tool
 from power_generation_duration_tool import create_power_generation_duration_tool
 from photovoltaic_capacity_tool import create_photovoltaic_capacity_tool
 from policy_query_tool import create_policy_query_tool
+from business_knowledge_tool import create_business_knowledge_tool
 
 load_dotenv()
 
@@ -27,7 +28,8 @@ class MainRouterAgent:
             create_electricity_price_tool(),
             create_power_generation_duration_tool(),
             create_photovoltaic_capacity_tool(),
-            create_policy_query_tool()
+            create_policy_query_tool(),
+            create_business_knowledge_tool()
         ]
         return tools
     
@@ -80,6 +82,7 @@ class MainRouterAgent:
 2. query_power_generation_duration: 当用户询问发电小时数或发电时长相关问题时使用
 3. query_photovoltaic_capacity: 当用户询问光伏承载力、可开放容量相关问题时使用
 4. query_policies: 当用户询问政策、法规、补贴、标准等相关问题时使用
+5. query_business_knowledge_base: 当用户询问关于公司业务、投资策略、项目要求等非结构化、解释性的问题时使用
 
 思考过程：
 - 仔细分析用户的问题，识别其中的关键信息和意图
@@ -228,8 +231,12 @@ Thought: {agent_scratchpad}"""
             tool = self.tools[3]  # policy_query_tool
             return f"[模拟路由] 检测到政策查询，调用政策工具：\n{tool._run(user_input)}"
         
+        elif any(keyword in user_input for keyword in ["投资", "合作", "业务", "项目", "门槛", "周期", "模式", "地面", "屋顶"]):
+            tool = self.tools[4]  # business_knowledge_tool
+            return f"[模拟路由] 检测到业务咨询，调用业务知识库工具：\n{tool._run(user_input)}"
+        
         else:
-            return "抱歉，我无法理解您的问题。请询问关于电价、发电小时数、光伏承载力或政策相关的问题。"
+            return "抱歉，我无法理解您的问题。请询问关于电价、发电小时数、光伏承载力、政策或业务相关的问题。"
 
 def create_main_router_agent():
     """Create and return the main router agent."""
