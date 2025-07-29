@@ -151,31 +151,51 @@ Thought: {agent_scratchpad}"""
         try:
             async for event in self.agent_executor.astream({"input": user_input}):
                 if isinstance(event, dict):
-                    if "messages" in event:
-                        for message in event["messages"]:
-                            if hasattr(message, "content") and message.content:
-                                if hasattr(message, "type") and message.type == "ai":
-                                    yield message.content
-                                elif hasattr(message, "type") and message.type == "human":
-                                    yield f"\nObservation: {message.content}"
-                    
-                    elif "actions" in event and event["actions"]:
-                        for action in event["actions"]:
-                            if hasattr(action, "tool") and hasattr(action, "tool_input"):
-                                yield f"\nAction: {action.tool}"
-                                yield f"\nAction Input: {action.tool_input}"
-                    
-                    elif "steps" in event and event["steps"]:
-                        for step in event["steps"]:
-                            if hasattr(step, "action") and hasattr(step, "observation"):
-                                action = step.action
+                    for key, value in event.items():
+                        if key == "agent" and isinstance(value, dict):
+                            if "messages" in value:
+                                for message in value["messages"]:
+                                    if hasattr(message, "content") and message.content:
+                                        content = message.content.strip()
+                                        if content:
+                                            yield content
+                        
+                        elif key == "tools" and isinstance(value, dict):
+                            if "messages" in value:
+                                for message in value["messages"]:
+                                    if hasattr(message, "content") and message.content:
+                                        yield f"\nObservation: {message.content}"
+                        
+                        elif key == "messages" and isinstance(value, list):
+                            for message in value:
+                                if hasattr(message, "content") and message.content:
+                                    content = message.content.strip()
+                                    if content:
+                                        if hasattr(message, "type"):
+                                            if message.type == "ai":
+                                                yield content
+                                            elif message.type == "human":
+                                                yield f"\nObservation: {content}"
+                                        else:
+                                            yield content
+                        
+                        elif key == "actions" and isinstance(value, list):
+                            for action in value:
                                 if hasattr(action, "tool") and hasattr(action, "tool_input"):
                                     yield f"\nAction: {action.tool}"
                                     yield f"\nAction Input: {action.tool_input}"
-                                yield f"\nObservation: {step.observation}"
-                    
-                    elif "output" in event:
-                        yield f"\n\nFinal Answer: {event['output']}"
+                        
+                        elif key == "steps" and isinstance(value, list):
+                            for step in value:
+                                if hasattr(step, "action") and hasattr(step, "observation"):
+                                    action = step.action
+                                    if hasattr(action, "tool") and hasattr(action, "tool_input"):
+                                        yield f"\nAction: {action.tool}"
+                                        yield f"\nAction Input: {action.tool_input}"
+                                    yield f"\nObservation: {step.observation}"
+                        
+                        elif key == "output" and isinstance(value, str):
+                            yield f"\nFinal Answer: {value}"
                                 
         except Exception as e:
             yield f"处理查询时出现错误：{str(e)}"
