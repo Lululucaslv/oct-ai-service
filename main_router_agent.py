@@ -121,8 +121,8 @@ Thought: {agent_scratchpad}"""
             tools=self.tools,
             verbose=True,
             handle_parsing_errors=True,
-            max_iterations=10,
-            max_execution_time=30
+            max_iterations=15,
+            max_execution_time=60
         )
     
     def query(self, user_input: str) -> str:
@@ -151,16 +151,32 @@ Thought: {agent_scratchpad}"""
         try:
             async for event in self.agent_executor.astream({"input": user_input}):
                 if isinstance(event, dict):
-                    if "agent" in event and "messages" in event["agent"]:
-                        for message in event["agent"]["messages"]:
+                    if "messages" in event:
+                        for message in event["messages"]:
                             if hasattr(message, "content") and message.content:
-                                yield message.content
+                                if hasattr(message, "type") and message.type == "ai":
+                                    yield message.content
+                                elif hasattr(message, "type") and message.type == "human":
+                                    yield f"\nObservation: {message.content}"
+                    
+                    elif "actions" in event and event["actions"]:
+                        for action in event["actions"]:
+                            if hasattr(action, "tool") and hasattr(action, "tool_input"):
+                                yield f"\nAction: {action.tool}"
+                                yield f"\nAction Input: {action.tool_input}"
+                    
+                    elif "steps" in event and event["steps"]:
+                        for step in event["steps"]:
+                            if hasattr(step, "action") and hasattr(step, "observation"):
+                                action = step.action
+                                if hasattr(action, "tool") and hasattr(action, "tool_input"):
+                                    yield f"\nAction: {action.tool}"
+                                    yield f"\nAction Input: {action.tool_input}"
+                                yield f"\nObservation: {step.observation}"
+                    
                     elif "output" in event:
-                        yield event["output"]
-                    elif "intermediate_steps" in event:
-                        for step in event["intermediate_steps"]:
-                            if len(step) > 1 and step[1]:  # (action, observation)
-                                yield f"\n{step[1]}"
+                        yield f"\n\nFinal Answer: {event['output']}"
+                                
         except Exception as e:
             yield f"处理查询时出现错误：{str(e)}"
     
