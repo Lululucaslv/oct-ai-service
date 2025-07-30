@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   daxiazhaoguang-ai:
     build: .
@@ -46,6 +44,9 @@ services:
       - OPENAI_API_BASE_URL=http://daxiazhaoguang-ai:8000/v1 # 直接连接到FastAPI服务
       - OPENAI_API_KEY=sk-fake-key # 虚拟API密钥
       - WEBUI_AUTH=False # 禁用登录以简化测试
+      - ENABLE_SIGNUP=False # 禁用用户注册
+      - ENABLE_LOGIN_FORM=False # 禁用登录表单
+      - DEFAULT_USER_ROLE=admin # 设置默认用户角色为管理员
       - ENABLE_OPENAI_API=true # 启用OpenAI API支持
     volumes:
       - open-webui-data:/app/backend/data # 持久化数据存储
