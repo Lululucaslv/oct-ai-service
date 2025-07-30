@@ -1,20 +1,34 @@
 #!/usr/bin/env python3
 """
-综合API测试脚本
-对《投资者中心3.0-20250729》文档中的全部六个API端点执行直接透明的API调用测试
+综合API压力测试脚本
+对《投资者中心3.0-20250729》文档中的全部六个API端点执行压力与稳定性测试
+每个端点执行15次独立调用以测试稳定性和响应一致性
 """
 
 import requests
 import json
 import subprocess
 import sys
+import time
 from datetime import datetime
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, List
 
-class APITester:
+class APIStressTester:
     def __init__(self):
         self.base_url = "https://test.daxiazhaoguang.com/server"
         self.results = []
+        self.stress_results = {}
+        
+        self.test_cities = [
+            "北京市", "上海市", "天津市", "重庆市",
+            "河北省-石家庄市", "山西省-太原市", "辽宁省-沈阳市", "吉林省-长春市",
+            "黑龙江省-哈尔滨市", "江苏省-南京市", "浙江省-杭州市", "安徽省-合肥市",
+            "福建省-福州市", "江西省-南昌市", "山东省-济南市"
+        ]
+        
+        self.policy_topics = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+        
+        self.knowledge_pages = list(range(1, 16))  # 页码1-15
         
     def generate_curl_command(self, method: str, endpoint: str, params: Dict = None, data: Dict = None) -> str:
         """生成curl命令字符串"""
@@ -33,9 +47,10 @@ class APITester:
                 
         return curl_cmd
     
-    def execute_api_call(self, method: str, endpoint: str, params: Dict = None, data: Dict = None) -> Tuple[str, Dict, bool]:
-        """执行API调用并返回curl命令、响应和成功状态"""
+    def execute_api_call(self, method: str, endpoint: str, params: Dict = None, data: Dict = None) -> Tuple[str, Dict, bool, int]:
+        """执行API调用并返回curl命令、响应、成功状态和HTTP状态码"""
         curl_cmd = self.generate_curl_command(method, endpoint, params, data)
+        http_status = 0
         
         try:
             url = f"{self.base_url}{endpoint}"
@@ -45,9 +60,11 @@ class APITester:
             else:
                 response = requests.post(url, json=data, headers={"Content-Type": "application/json"}, timeout=30)
             
-            response.raise_for_status()
+            http_status = response.status_code
             response_data = response.json()
-            success = True
+            
+            business_code = response_data.get('code', -1)
+            success = (http_status == 200) and (business_code in [0, 200])
             
         except requests.exceptions.RequestException as e:
             response_data = {"error": f"请求失败: {str(e)}"}
@@ -59,181 +76,253 @@ class APITester:
             response_data = {"error": f"未知错误: {str(e)}"}
             success = False
             
-        return curl_cmd, response_data, success
+        return curl_cmd, response_data, success, http_status
     
-    def test_elec_price_api(self):
-        """测试接口1: /hub/elec_price/"""
+    def stress_test_elec_price_api(self):
+        """压力测试接口1: /hub/elec_price/ - 15次调用"""
         print("=" * 80)
-        print("测试接口1: /hub/elec_price/")
-        print("测试用例: 查询上海市-杨浦区的脱硫煤电价 (type=1)")
+        print("压力测试接口1: /hub/elec_price/ - 15次调用")
         print("=" * 80)
         
-        params = {
-            "city": "上海市-杨浦区",
-            "type": 1
-        }
+        endpoint = "/hub/elec_price/"
+        results = []
         
-        curl_cmd, response_data, success = self.execute_api_call("GET", "/hub/elec_price/", params=params)
+        for i, city in enumerate(self.test_cities, 1):
+            print(f"调用 {i}/15: 查询{city}的脱硫煤电价")
+            
+            params = {
+                "city": city,
+                "type": 1  # 脱硫煤电价
+            }
+            
+            curl_cmd, response_data, success, http_status = self.execute_api_call("GET", endpoint, params=params)
+            
+            result = {
+                "call_number": i,
+                "city": city,
+                "http_status": http_status,
+                "business_code": response_data.get('code', -1) if isinstance(response_data, dict) else -1,
+                "success": success,
+                "curl_command": curl_cmd,
+                "response": response_data
+            }
+            
+            results.append(result)
+            print(f"  HTTP状态: {http_status}, 业务代码: {result['business_code']}, 结果: {'✅' if success else '❌'}")
+            
+            time.sleep(0.1)
         
-        result = {
-            "endpoint": "/hub/elec_price/",
-            "test_case": "查询上海市-杨浦区的脱硫煤电价 (type=1)",
-            "curl_command": curl_cmd,
-            "response": response_data,
-            "success": success
-        }
+        self.stress_results[endpoint] = results
         
-        self.results.append(result)
-        
-        print(f"CURL命令: {curl_cmd}")
-        print(f"API响应: {json.dumps(response_data, ensure_ascii=False, indent=2)}")
-        print(f"验证结果: {'✅ 成功' if success else '❌ 失败'}")
+        success_count = sum(1 for r in results if r['success'])
+        print(f"\n接口 {endpoint} 压力测试完成:")
+        print(f"总调用次数: 15, 成功次数: {success_count}, 成功率: {success_count/15*100:.1f}%")
         print()
         
-    def test_industrial_commercial_elec_price_api(self):
-        """测试接口2: /hub/industrial_commercial_elec_price/"""
+    def stress_test_industrial_commercial_elec_price_api(self):
+        """压力测试接口2: /hub/industrial_commercial_elec_price/ - 15次调用"""
         print("=" * 80)
-        print("测试接口2: /hub/industrial_commercial_elec_price/")
-        print("测试用例: 查询安徽省-淮南市的工商加权电价")
+        print("压力测试接口2: /hub/industrial_commercial_elec_price/ - 15次调用")
         print("=" * 80)
         
-        params = {
-            "city": "安徽省-淮南市"
-        }
+        endpoint = "/hub/industrial_commercial_elec_price/"
+        results = []
         
-        curl_cmd, response_data, success = self.execute_api_call("GET", "/hub/industrial_commercial_elec_price/", params=params)
+        for i, city in enumerate(self.test_cities, 1):
+            print(f"调用 {i}/15: 查询{city}的工商加权电价")
+            
+            params = {
+                "city": city
+            }
+            
+            curl_cmd, response_data, success, http_status = self.execute_api_call("GET", endpoint, params=params)
+            
+            result = {
+                "call_number": i,
+                "city": city,
+                "http_status": http_status,
+                "business_code": response_data.get('code', -1) if isinstance(response_data, dict) else -1,
+                "success": success,
+                "curl_command": curl_cmd,
+                "response": response_data
+            }
+            
+            results.append(result)
+            print(f"  HTTP状态: {http_status}, 业务代码: {result['business_code']}, 结果: {'✅' if success else '❌'}")
+            
+            time.sleep(0.1)
         
-        result = {
-            "endpoint": "/hub/industrial_commercial_elec_price/",
-            "test_case": "查询安徽省-淮南市的工商加权电价",
-            "curl_command": curl_cmd,
-            "response": response_data,
-            "success": success
-        }
+        self.stress_results[endpoint] = results
         
-        self.results.append(result)
-        
-        print(f"CURL命令: {curl_cmd}")
-        print(f"API响应: {json.dumps(response_data, ensure_ascii=False, indent=2)}")
-        print(f"验证结果: {'✅ 成功' if success else '❌ 失败'}")
+        success_count = sum(1 for r in results if r['success'])
+        print(f"\n接口 {endpoint} 压力测试完成:")
+        print(f"总调用次数: 15, 成功次数: {success_count}, 成功率: {success_count/15*100:.1f}%")
         print()
         
-    def test_power_generation_duration_api(self):
-        """测试接口3: /hub/power_generation_duration/"""
+    def stress_test_power_generation_duration_api(self):
+        """压力测试接口3: /hub/power_generation_duration/ - 15次调用"""
         print("=" * 80)
-        print("测试接口3: /hub/power_generation_duration/")
-        print("测试用例: 查询北京的有效发电小时数")
+        print("压力测试接口3: /hub/power_generation_duration/ - 15次调用")
         print("=" * 80)
         
-        params = {
-            "city": "北京"
-        }
+        endpoint = "/hub/power_generation_duration/"
+        results = []
         
-        curl_cmd, response_data, success = self.execute_api_call("GET", "/hub/power_generation_duration/", params=params)
+        for i, city in enumerate(self.test_cities, 1):
+            print(f"调用 {i}/15: 查询{city}的有效发电小时数")
+            
+            params = {
+                "city": city
+            }
+            
+            curl_cmd, response_data, success, http_status = self.execute_api_call("GET", endpoint, params=params)
+            
+            result = {
+                "call_number": i,
+                "city": city,
+                "http_status": http_status,
+                "business_code": response_data.get('code', -1) if isinstance(response_data, dict) else -1,
+                "success": success,
+                "curl_command": curl_cmd,
+                "response": response_data
+            }
+            
+            results.append(result)
+            print(f"  HTTP状态: {http_status}, 业务代码: {result['business_code']}, 结果: {'✅' if success else '❌'}")
+            
+            time.sleep(0.1)
         
-        result = {
-            "endpoint": "/hub/power_generation_duration/",
-            "test_case": "查询北京的有效发电小时数",
-            "curl_command": curl_cmd,
-            "response": response_data,
-            "success": success
-        }
+        self.stress_results[endpoint] = results
         
-        self.results.append(result)
-        
-        print(f"CURL命令: {curl_cmd}")
-        print(f"API响应: {json.dumps(response_data, ensure_ascii=False, indent=2)}")
-        print(f"验证结果: {'✅ 成功' if success else '❌ 失败'}")
+        success_count = sum(1 for r in results if r['success'])
+        print(f"\n接口 {endpoint} 压力测试完成:")
+        print(f"总调用次数: 15, 成功次数: {success_count}, 成功率: {success_count/15*100:.1f}%")
         print()
         
-    def test_pv_capacity_api(self):
-        """测试接口4: /hub/pv_capacity/"""
+    def stress_test_pv_capacity_api(self):
+        """压力测试接口4: /hub/pv_capacity/ - 15次调用"""
         print("=" * 80)
-        print("测试接口4: /hub/pv_capacity/")
-        print("测试用例: 查询河南省-开封市的光伏承载力 (page=1, page_size=1)")
+        print("压力测试接口4: /hub/pv_capacity/ - 15次调用")
         print("=" * 80)
         
-        params = {
-            "city": "河南省-开封市",
-            "page": 1,
-            "page_size": 1
-        }
+        endpoint = "/hub/pv_capacity/"
+        results = []
         
-        curl_cmd, response_data, success = self.execute_api_call("GET", "/hub/pv_capacity/", params=params)
+        for i, city in enumerate(self.test_cities, 1):
+            print(f"调用 {i}/15: 查询{city}的光伏承载力")
+            
+            params = {
+                "city": city,
+                "page": 1,
+                "page_size": 1
+            }
+            
+            curl_cmd, response_data, success, http_status = self.execute_api_call("GET", endpoint, params=params)
+            
+            result = {
+                "call_number": i,
+                "city": city,
+                "http_status": http_status,
+                "business_code": response_data.get('code', -1) if isinstance(response_data, dict) else -1,
+                "success": success,
+                "curl_command": curl_cmd,
+                "response": response_data
+            }
+            
+            results.append(result)
+            print(f"  HTTP状态: {http_status}, 业务代码: {result['business_code']}, 结果: {'✅' if success else '❌'}")
+            
+            time.sleep(0.1)
         
-        result = {
-            "endpoint": "/hub/pv_capacity/",
-            "test_case": "查询河南省-开封市的光伏承载力 (page=1, page_size=1)",
-            "curl_command": curl_cmd,
-            "response": response_data,
-            "success": success
-        }
+        self.stress_results[endpoint] = results
         
-        self.results.append(result)
-        
-        print(f"CURL命令: {curl_cmd}")
-        print(f"API响应: {json.dumps(response_data, ensure_ascii=False, indent=2)}")
-        print(f"验证结果: {'✅ 成功' if success else '❌ 失败'}")
+        success_count = sum(1 for r in results if r['success'])
+        print(f"\n接口 {endpoint} 压力测试完成:")
+        print(f"总调用次数: 15, 成功次数: {success_count}, 成功率: {success_count/15*100:.1f}%")
         print()
         
-    def test_policy_search_api(self):
-        """测试接口5: /hub/policy/search/"""
+    def stress_test_policy_search_api(self):
+        """压力测试接口5: /hub/policy/search/ - 15次调用"""
         print("=" * 80)
-        print("测试接口5: /hub/policy/search/")
-        print("测试用例: 使用is_countrywide=1, released=2, message=政策信息, topic=专项补贴进行查询")
+        print("压力测试接口5: /hub/policy/search/ - 15次调用")
         print("=" * 80)
         
-        params = {
-            "is_countrywide": 1,
-            "released": 2,
-            "message": "政策信息",
-            "topic": "专项补贴"
-        }
+        endpoint = "/hub/policy/search/"
+        results = []
         
-        curl_cmd, response_data, success = self.execute_api_call("GET", "/hub/policy/search/", params=params)
+        for i, topic_id in enumerate(self.policy_topics, 1):
+            print(f"调用 {i}/15: 查询topic_id={topic_id}的政策信息")
+            
+            params = {
+                "is_countrywide": 1,
+                "released": 2,
+                "message": "政策信息",
+                "topic": topic_id  # 使用数字ID而不是字符串
+            }
+            
+            curl_cmd, response_data, success, http_status = self.execute_api_call("GET", endpoint, params=params)
+            
+            result = {
+                "call_number": i,
+                "topic_id": topic_id,
+                "http_status": http_status,
+                "business_code": response_data.get('code', -1) if isinstance(response_data, dict) else -1,
+                "success": success,
+                "curl_command": curl_cmd,
+                "response": response_data
+            }
+            
+            results.append(result)
+            print(f"  HTTP状态: {http_status}, 业务代码: {result['business_code']}, 结果: {'✅' if success else '❌'}")
+            
+            time.sleep(0.1)
         
-        result = {
-            "endpoint": "/hub/policy/search/",
-            "test_case": "使用is_countrywide=1, released=2, message=政策信息, topic=专项补贴进行查询",
-            "curl_command": curl_cmd,
-            "response": response_data,
-            "success": success
-        }
+        self.stress_results[endpoint] = results
         
-        self.results.append(result)
-        
-        print(f"CURL命令: {curl_cmd}")
-        print(f"API响应: {json.dumps(response_data, ensure_ascii=False, indent=2)}")
-        print(f"验证结果: {'✅ 成功' if success else '❌ 失败'}")
+        success_count = sum(1 for r in results if r['success'])
+        print(f"\n接口 {endpoint} 压力测试完成:")
+        print(f"总调用次数: 15, 成功次数: {success_count}, 成功率: {success_count/15*100:.1f}%")
         print()
         
-    def test_knowledge_bin_api(self):
-        """测试接口6: /hub/knowledge_bin/"""
+    def stress_test_knowledge_bin_api(self):
+        """压力测试接口6: /hub/knowledge_bin/ - 15次调用"""
         print("=" * 80)
-        print("测试接口6: /hub/knowledge_bin/")
-        print("测试用例: 查询业务知识库的第一页 (page=1, page_size=2)")
+        print("压力测试接口6: /hub/knowledge_bin/ - 15次调用")
         print("=" * 80)
         
-        params = {
-            "page": 1,
-            "page_size": 2
-        }
+        endpoint = "/hub/knowledge_bin/"
+        results = []
         
-        curl_cmd, response_data, success = self.execute_api_call("GET", "/hub/knowledge_bin/", params=params)
+        for i, page in enumerate(self.knowledge_pages, 1):
+            print(f"调用 {i}/15: 查询业务知识库第{page}页")
+            
+            params = {
+                "page": page,
+                "page_size": 2
+            }
+            
+            curl_cmd, response_data, success, http_status = self.execute_api_call("GET", endpoint, params=params)
+            
+            result = {
+                "call_number": i,
+                "page": page,
+                "http_status": http_status,
+                "business_code": response_data.get('code', -1) if isinstance(response_data, dict) else -1,
+                "success": success,
+                "curl_command": curl_cmd,
+                "response": response_data
+            }
+            
+            results.append(result)
+            print(f"  HTTP状态: {http_status}, 业务代码: {result['business_code']}, 结果: {'✅' if success else '❌'}")
+            
+            time.sleep(0.1)
         
-        result = {
-            "endpoint": "/hub/knowledge_bin/",
-            "test_case": "查询业务知识库的第一页 (page=1, page_size=2)",
-            "curl_command": curl_cmd,
-            "response": response_data,
-            "success": success
-        }
+        self.stress_results[endpoint] = results
         
-        self.results.append(result)
-        
-        print(f"CURL命令: {curl_cmd}")
-        print(f"API响应: {json.dumps(response_data, ensure_ascii=False, indent=2)}")
-        print(f"验证结果: {'✅ 成功' if success else '❌ 失败'}")
+        success_count = sum(1 for r in results if r['success'])
+        print(f"\n接口 {endpoint} 压力测试完成:")
+        print(f"总调用次数: 15, 成功次数: {success_count}, 成功率: {success_count/15*100:.1f}%")
         print()
         
     def generate_markdown_report(self):
@@ -339,5 +428,5 @@ class APITester:
         print("=" * 80)
 
 if __name__ == "__main__":
-    tester = APITester()
-    tester.run_all_tests()
+    tester = APIStressTester()
+    tester.run_stress_tests()
