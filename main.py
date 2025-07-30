@@ -4,7 +4,8 @@ from fastapi.responses import StreamingResponse
 import asyncio
 import json
 import uuid
-from typing import Dict, Optional
+import time
+from typing import Dict, Optional, List
 from electricity_price_tool import create_electricity_price_tool
 from power_generation_duration_tool import create_power_generation_duration_tool
 from photovoltaic_capacity_tool import create_photovoltaic_capacity_tool
@@ -36,6 +37,25 @@ class QueryRequest(BaseModel):
 class QueryResponse(BaseModel):
     result: str
     success: bool
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+class ChatCompletionRequest(BaseModel):
+    model: str
+    messages: List[ChatMessage]
+    stream: Optional[bool] = False
+    temperature: Optional[float] = 0.7
+    max_tokens: Optional[int] = None
+
+class ChatCompletionResponse(BaseModel):
+    id: str
+    object: str
+    created: int
+    model: str
+    choices: List[dict]
+    usage: dict
 
 @app.get("/")
 async def root():
@@ -156,6 +176,139 @@ async def health_check():
         "services": ["electricity_price_tool", "power_generation_duration_tool", "photovoltaic_capacity_tool", "policy_query_tool", "main_router_agent"],
         "active_sessions": len(session_agents)
     }
+
+@app.get("/v1/models")
+async def list_models():
+    """OpenAI-compatible models endpoint"""
+    return {
+        "object": "list",
+        "data": [
+            {
+                "id": "daxia-agent",
+                "object": "model",
+                "created": int(time.time()),
+                "owned_by": "daxiazhaoguang"
+            }
+        ]
+    }
+
+@app.post("/v1/chat/completions")
+async def chat_completions(request: ChatCompletionRequest):
+    """OpenAI-compatible chat completions endpoint"""
+    try:
+        user_message = None
+        for message in reversed(request.messages):
+            if message.role == "user":
+                user_message = message.content
+                break
+        
+        if not user_message:
+            user_message = "你好"
+        
+        agent, session_id = get_or_create_agent(None)
+        
+        if request.stream:
+            async def generate_openai_stream():
+                try:
+                    response_id = f"chatcmpl-{uuid.uuid4().hex[:8]}"
+                    created = int(time.time())
+                    
+                    initial_chunk = {
+                        "id": response_id,
+                        "object": "chat.completion.chunk",
+                        "created": created,
+                        "model": request.model,
+                        "choices": [{
+                            "index": 0,
+                            "delta": {"role": "assistant", "content": ""},
+                            "finish_reason": None
+                        }]
+                    }
+                    yield f"data: {json.dumps(initial_chunk, ensure_ascii=False)}\n\n"
+                    
+                    async for chunk in agent.query_stream(user_message):
+                        if chunk:
+                            content_chunk = {
+                                "id": response_id,
+                                "object": "chat.completion.chunk",
+                                "created": created,
+                                "model": request.model,
+                                "choices": [{
+                                    "index": 0,
+                                    "delta": {"content": chunk},
+                                    "finish_reason": None
+                                }]
+                            }
+                            yield f"data: {json.dumps(content_chunk, ensure_ascii=False)}\n\n"
+                    
+                    final_chunk = {
+                        "id": response_id,
+                        "object": "chat.completion.chunk",
+                        "created": created,
+                        "model": request.model,
+                        "choices": [{
+                            "index": 0,
+                            "delta": {},
+                            "finish_reason": "stop"
+                        }]
+                    }
+                    yield f"data: {json.dumps(final_chunk, ensure_ascii=False)}\n\n"
+                    yield "data: [DONE]\n\n"
+                    
+                except Exception as e:
+                    error_chunk = {
+                        "id": f"chatcmpl-{uuid.uuid4().hex[:8]}",
+                        "object": "chat.completion.chunk",
+                        "created": int(time.time()),
+                        "model": request.model,
+                        "choices": [{
+                            "index": 0,
+                            "delta": {"content": f"系统错误: {str(e)}"},
+                            "finish_reason": "stop"
+                        }]
+                    }
+                    yield f"data: {json.dumps(error_chunk, ensure_ascii=False)}\n\n"
+                    yield "data: [DONE]\n\n"
+            
+            return StreamingResponse(
+                generate_openai_stream(),
+                media_type="text/event-stream",
+                headers={
+                    "Cache-Control": "no-cache",
+                    "Connection": "keep-alive",
+                }
+            )
+        else:
+            result = agent.query(user_message)
+            response = {
+                "id": f"chatcmpl-{uuid.uuid4().hex[:8]}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": request.model,
+                "choices": [{
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": result
+                    },
+                    "finish_reason": "stop"
+                }],
+                "usage": {
+                    "prompt_tokens": len(user_message),
+                    "completion_tokens": len(result),
+                    "total_tokens": len(user_message) + len(result)
+                }
+            }
+            return response
+            
+    except Exception as e:
+        return {
+            "error": {
+                "message": f"系统错误: {str(e)}",
+                "type": "internal_server_error",
+                "code": "internal_error"
+            }
+        }
 
 if __name__ == "__main__":
     import uvicorn

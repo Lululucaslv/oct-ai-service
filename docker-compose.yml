@@ -25,6 +25,19 @@ services:
     networks:
       - daxiazhaoguang-network
 
+  litellm-proxy:
+    image: ghcr.io/berriai/litellm:main-stable
+    ports:
+      - "4000:4000" # 将代理的4000端口暴露给主机
+    environment:
+      - LITELLM_CONFIG_PATH=/app/litellm_config.yaml
+    volumes:
+      - ./litellm_config.yaml:/app/litellm_config.yaml # 将配置文件挂载到容器中
+    depends_on:
+      - daxiazhaoguang-ai # 确保我们的AI服务先启动
+    networks:
+      - daxiazhaoguang-network
+
 networks:
   daxiazhaoguang-network:
     driver: bridge

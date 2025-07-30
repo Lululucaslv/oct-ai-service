@@ -1,0 +1,9 @@
+model_list:
+  - model_name: daxia-agent
+    litellm_params:
+      model: custom_llm
+      api_base: "http://daxiazhaoguang-ai:8000/ask_agent_stream"
+      custom_llm_provider: "openai"
+
+litellm_settings:
+  set_verbose: True
