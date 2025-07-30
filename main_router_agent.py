@@ -4,6 +4,7 @@ from langchain.agents import create_react_agent, AgentExecutor
 from langchain.prompts import PromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.tools import BaseTool
+from langchain.memory import ConversationBufferMemory
 from dotenv import load_dotenv
 
 from electricity_price_tool import create_electricity_price_tool
@@ -15,11 +16,12 @@ from business_knowledge_tool import create_business_knowledge_tool
 load_dotenv()
 
 class MainRouterAgent:
-    """Main Router Agent that intelligently routes queries to appropriate tools."""
+    """Main Router Agent that intelligently routes queries to appropriate tools with conversation memory."""
     
     def __init__(self):
         self.tools = self._load_tools()
         self.llm = self._setup_llm()
+        self.memory = self._setup_memory()
         self.agent_executor = self._create_agent_executor()
     
     def _load_tools(self) -> List[BaseTool]:
@@ -32,6 +34,14 @@ class MainRouterAgent:
             create_business_knowledge_tool()
         ]
         return tools
+    
+    def _setup_memory(self) -> ConversationBufferMemory:
+        """Setup conversation memory for multi-round dialogue."""
+        return ConversationBufferMemory(
+            memory_key="chat_history",
+            return_messages=True,
+            output_key="output"
+        )
     
     def _setup_llm(self) -> ChatGoogleGenerativeAI:
         """Setup the Google Gemini language model with fallback logic."""
@@ -62,7 +72,7 @@ class MainRouterAgent:
                 return None
     
     def _create_main_prompt(self) -> PromptTemplate:
-        """Create the main prompt template for the agent."""
+        """Create the main prompt template for the agent with conversation memory."""
         
         template = """你是"大侠找光"AI智能助手，专门帮助用户查询光伏相关信息。
 
@@ -71,6 +81,10 @@ class MainRouterAgent:
 - 你可以理解用户的自然语言问题，并智能地选择合适的工具来回答
 - 你可以同时调用多个工具来提供全面的答案
 - 你的回答应该专业、准确、用户友好
+- 你需要根据之前的对话历史（chat_history）来理解用户的当前问题
+
+对话历史：
+{chat_history}
 
 可用工具：
 {tools}
@@ -86,6 +100,8 @@ class MainRouterAgent:
 
 思考过程：
 - 仔细分析用户的问题，识别其中的关键信息和意图
+- 查看对话历史，理解上下文中提到的地点、参数等信息
+- 如果用户使用了"那边"、"这里"等指代词，从对话历史中找到具体的地理位置
 - 判断需要使用哪个或哪些工具来回答问题
 - 如果问题涉及多个方面，可以依次调用多个工具
 - 将工具返回的结果整合成完整、连贯的回答
@@ -93,7 +109,7 @@ class MainRouterAgent:
 请使用以下格式进行思考和行动：
 
 Question: 用户的问题
-Thought: 我需要分析这个问题并决定使用哪些工具
+Thought: 我需要分析这个问题并决定使用哪些工具，同时考虑对话历史中的上下文信息
 Action: 选择的工具名称
 Action Input: 传递给工具的输入
 Observation: 工具返回的结果
@@ -105,6 +121,7 @@ Final Answer: 给用户的最终回答
 - 每个 Thought 后必须跟一个 Action
 - 如果无法确定具体参数，直接给出 Final Answer 询问用户
 - 保持格式严格一致，避免格式错误
+- 充分利用对话历史来理解用户的指代和上下文
 
 开始！
 
@@ -113,11 +130,11 @@ Thought: {agent_scratchpad}"""
 
         return PromptTemplate(
             template=template,
-            input_variables=["input", "agent_scratchpad", "tools", "tool_names"]
+            input_variables=["input", "agent_scratchpad", "tools", "tool_names", "chat_history"]
         )
     
     def _create_agent_executor(self) -> AgentExecutor:
-        """Create the agent executor with enhanced error handling."""
+        """Create the agent executor with enhanced error handling and memory."""
         if not self.llm:
             return None
         
@@ -127,11 +144,12 @@ Thought: {agent_scratchpad}"""
         return AgentExecutor(
             agent=agent,
             tools=self.tools,
+            memory=self.memory,
             verbose=True,
             handle_parsing_errors="Check your output and make sure it conforms to the expected format. Try again.",
             max_iterations=10,
             max_execution_time=30,
-            early_stopping_method="generate"
+            early_stopping_method="force"
         )
     
     def query(self, user_input: str) -> str:
@@ -146,7 +164,7 @@ Thought: {agent_scratchpad}"""
             return f"处理查询时出现错误：{str(e)}"
     
     async def query_stream(self, user_input: str):
-        """Process user query and return streaming response with improved error handling and deduplication."""
+        """Process user query and return streaming response with improved error handling, deduplication, and memory."""
         if not self.agent_executor:
             mock_response = self._mock_query_response(user_input)
             words = mock_response.split()
@@ -192,6 +210,10 @@ Thought: {agent_scratchpad}"""
             error_msg = f"处理查询时出现错误：{str(e)}"
             if error_msg not in yielded_content:
                 yield error_msg
+    
+    def clear_memory(self):
+        """Clear conversation memory for a new session."""
+        self.memory.clear()
     
     def _mock_query_response(self, user_input: str) -> str:
         """Mock response for testing without OpenAI API."""
