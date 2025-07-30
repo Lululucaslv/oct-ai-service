@@ -101,6 +101,11 @@ Observation: 工具返回的结果
 Thought: 我现在知道最终答案了
 Final Answer: 给用户的最终回答
 
+重要提示：
+- 每个 Thought 后必须跟一个 Action
+- 如果无法确定具体参数，直接给出 Final Answer 询问用户
+- 保持格式严格一致，避免格式错误
+
 开始！
 
 Question: {input}
@@ -112,7 +117,7 @@ Thought: {agent_scratchpad}"""
         )
     
     def _create_agent_executor(self) -> AgentExecutor:
-        """Create the agent executor."""
+        """Create the agent executor with enhanced error handling."""
         if not self.llm:
             return None
         
@@ -123,9 +128,10 @@ Thought: {agent_scratchpad}"""
             agent=agent,
             tools=self.tools,
             verbose=True,
-            handle_parsing_errors=True,
-            max_iterations=15,
-            max_execution_time=60
+            handle_parsing_errors="Check your output and make sure it conforms to the expected format. Try again.",
+            max_iterations=10,
+            max_execution_time=30,
+            early_stopping_method="generate"
         )
     
     def query(self, user_input: str) -> str:
@@ -140,7 +146,7 @@ Thought: {agent_scratchpad}"""
             return f"处理查询时出现错误：{str(e)}"
     
     async def query_stream(self, user_input: str):
-        """Process user query and return streaming response."""
+        """Process user query and return streaming response with improved error handling and deduplication."""
         if not self.agent_executor:
             mock_response = self._mock_query_response(user_input)
             words = mock_response.split()
@@ -151,6 +157,8 @@ Thought: {agent_scratchpad}"""
                     yield f" {word}"
             return
         
+        yielded_content = set()
+        
         try:
             async for event in self.agent_executor.astream({"input": user_input}):
                 if isinstance(event, dict):
@@ -160,48 +168,30 @@ Thought: {agent_scratchpad}"""
                                 for message in value["messages"]:
                                     if hasattr(message, "content") and message.content:
                                         content = message.content.strip()
-                                        if content:
-                                            yield content
+                                        if content and content not in yielded_content:
+                                            if "Invalid Format:" not in content and "_Exception" not in content:
+                                                yielded_content.add(content)
+                                                yield content
                         
                         elif key == "tools" and isinstance(value, dict):
                             if "messages" in value:
                                 for message in value["messages"]:
                                     if hasattr(message, "content") and message.content:
-                                        yield f"\nObservation: {message.content}"
-                        
-                        elif key == "messages" and isinstance(value, list):
-                            for message in value:
-                                if hasattr(message, "content") and message.content:
-                                    content = message.content.strip()
-                                    if content:
-                                        if hasattr(message, "type"):
-                                            if message.type == "ai":
-                                                yield content
-                                            elif message.type == "human":
-                                                yield f"\nObservation: {content}"
-                                        else:
-                                            yield content
-                        
-                        elif key == "actions" and isinstance(value, list):
-                            for action in value:
-                                if hasattr(action, "tool") and hasattr(action, "tool_input"):
-                                    yield f"\nAction: {action.tool}"
-                                    yield f"\nAction Input: {action.tool_input}"
-                        
-                        elif key == "steps" and isinstance(value, list):
-                            for step in value:
-                                if hasattr(step, "action") and hasattr(step, "observation"):
-                                    action = step.action
-                                    if hasattr(action, "tool") and hasattr(action, "tool_input"):
-                                        yield f"\nAction: {action.tool}"
-                                        yield f"\nAction Input: {action.tool_input}"
-                                    yield f"\nObservation: {step.observation}"
+                                        obs_content = f"\nObservation: {message.content}"
+                                        if obs_content not in yielded_content:
+                                            yielded_content.add(obs_content)
+                                            yield obs_content
                         
                         elif key == "output" and isinstance(value, str):
-                            yield f"\nFinal Answer: {value}"
+                            final_content = f"\nFinal Answer: {value}"
+                            if final_content not in yielded_content:
+                                yielded_content.add(final_content)
+                                yield final_content
                                 
         except Exception as e:
-            yield f"处理查询时出现错误：{str(e)}"
+            error_msg = f"处理查询时出现错误：{str(e)}"
+            if error_msg not in yielded_content:
+                yield error_msg
     
     def _mock_query_response(self, user_input: str) -> str:
         """Mock response for testing without OpenAI API."""
