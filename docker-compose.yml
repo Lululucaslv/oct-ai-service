@@ -38,6 +38,26 @@ services:
     networks:
       - daxiazhaoguang-network
 
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    ports:
+      - "3000:8080" # Open WebUI端口映射
+    environment:
+      - OPENAI_API_BASE_URL=http://daxiazhaoguang-ai:8000/v1 # 直接连接到FastAPI服务
+      - OPENAI_API_KEY=sk-fake-key # 虚拟API密钥
+      - WEBUI_AUTH=False # 禁用登录以简化测试
+      - ENABLE_OPENAI_API=true # 启用OpenAI API支持
+    volumes:
+      - open-webui-data:/app/backend/data # 持久化数据存储
+    depends_on:
+      - daxiazhaoguang-ai # 确保AI服务先启动
+    networks:
+      - daxiazhaoguang-network
+    restart: unless-stopped
+
+volumes:
+  open-webui-data:
+
 networks:
   daxiazhaoguang-network:
     driver: bridge

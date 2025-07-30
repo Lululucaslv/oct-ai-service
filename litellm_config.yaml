@@ -1,9 +1,9 @@
 model_list:
   - model_name: daxia-agent
     litellm_params:
-      model: custom_llm
-      api_base: "http://daxiazhaoguang-ai:8000/ask_agent_stream"
-      custom_llm_provider: "openai"
+      model: openai/daxia-agent
+      api_base: "http://daxiazhaoguang-ai:8000/v1"
+      api_key: "sk-fake-key"
 
 litellm_settings:
   set_verbose: True
