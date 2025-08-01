@@ -1,194 +1,146 @@
-# 大侠找光 AI 工具集
+# OCT PoC - 华侨城项目概念验证
 
-一个基于LangChain和FastAPI构建的智能光伏行业查询系统，为光伏从业者提供专业、准确的数据查询和政策咨询服务。
+## 项目概述
+本项目为华侨城(OCT)项目的概念验证(PoC)，演示从PPT文件提取数据、存储到PostgreSQL数据库，并通过n8n工作流生成Excel报告的完整流程。
 
-## 🌟 项目特色
+## 项目结构
+```
+oct-poc/
+├── docker-compose.yml          # PostgreSQL容器配置
+├── setup.sql                   # 数据库设置和数据插入脚本
+├── OCT_PoC_Workflow.json      # n8n工作流配置文件
+├── extract_ppt_and_setup_db.py # 数据库设置和验证脚本
+├── generate_excel_report.py    # Excel报告生成脚本
+├── poc_extraction_report.xlsx  # 最终生成的Excel报告
+└── README.md                   # 本文档
+```
 
-- **🧠 智能路由**: 基于自然语言理解的智能查询路由系统
-- **🔧 模块化设计**: 四个独立AI工具，可单独使用或协同工作
-- **⚡ 高性能**: FastAPI异步服务，支持高并发查询
-- **🎯 专业领域**: 专注光伏行业，提供精准的行业数据和政策信息
-- **🔄 容错设计**: Mock模式支持，确保系统稳定性
+## 数据表结构
 
-## 🚀 快速开始
+### h1_carry_over_performance (结转业绩表)
+- `project_name`: 项目名称
+- `period`: 期间 (上半年实际/下半年预计)
+- `units_transferred`: 结转套数
+- `revenue`: 收入(万元)
+- `gross_profit`: 毛利(万元)
+- `taxes_and_surcharges`: 税金及附加(万元)
+- `period_expenses`: 期间费用(万元)
+- `net_profit`: 净利润(万元)
 
-### 安装依赖
+### h1_collections_performance (回款业绩表)
+- `project_name`: 项目名称
+- `annual_target`: 全年目标(万元)
+- `h1_budget`: 上半年预算(万元)
+- `h1_actual`: 上半年实际(万元)
+- `h1_completion_rate`: 上半年完成率
+- `annual_completion_rate`: 年度完成率
+
+## 数据来源
+数据来源于《昆山康盛半年度工作报告-终稿.pptx》文件中的关键表格：
+- 幻灯片4: 上半年经营指标完成情况--结转
+- 幻灯片6: 上半年经营指标完成情况--回款
+- 幻灯片10: 下半年经营指标预计--结转
+- 幻灯片12: 下半年经营指标预计--回款
+
+## 快速开始
+
+### 1. 启动PostgreSQL数据库
 ```bash
-pip install -r requirements.txt
+cd /home/ubuntu/oct-poc
+docker-compose up -d
 ```
 
-### 配置环境变量
-创建 `.env` 文件：
+### 2. 设置数据库和插入数据
 ```bash
-BASE_URL=https://test.daxiazhaoguang.com/server/
-DAXIA_API_TOKEN=your_token_here
-OPENAI_API_KEY=your_openai_key_here  # 可选
+python3 extract_ppt_and_setup_db.py
 ```
 
-### 启动服务
+### 3. 生成Excel报告
 ```bash
-python main.py
+python3 generate_excel_report.py
 ```
 
-服务将在 `http://localhost:8000` 启动
+### 4. 使用n8n工作流 (可选)
+1. 安装n8n: `npm install -g n8n`
+2. 启动n8n: `n8n start`
+3. 访问 http://localhost:5678
+4. 导入 `OCT_PoC_Workflow.json`
+5. 配置PostgreSQL连接:
+   - Host: localhost
+   - Port: 5432
+   - Database: oct_poc
+   - Username: oct_user
+   - Password: oct_password
+6. 执行工作流生成Excel报告
 
-### 测试查询
+## 验证步骤
+
+### 数据库连接测试
 ```bash
-curl -X POST "http://localhost:8000/ask_agent" \
-  -H "Content-Type: application/json" \
-  -d '{"query": "北京市的有效发电小时数是多少？"}'
+psql -h localhost -U oct_user -d oct_poc
 ```
 
-## 🛠️ 核心功能
+### 查询数据验证
+```sql
+-- 查看结转业绩数据
+SELECT * FROM h1_carry_over_performance;
 
-### 1. 电价查询工具
-- 支持上网电价、脱硫煤电价、工商业电价查询
-- 智能城市名称解析和格式化
-- 覆盖全国主要城市和地区
-
-### 2. 有效发电小时数查询工具
-- 基于地理位置的发电效率数据
-- 支持多种城市格式输入
-- 提供历史数据和趋势分析
-
-### 3. 光伏承载力查询工具
-- 多级地理位置解析（省市区县）
-- 承载力状态和可开放容量查询
-- 详细的台变数据和汇总信息
-
-### 4. 政策查询工具
-- 多条件政策搜索引擎
-- 支持地区、主题、电站模式等复杂筛选
-- 政策内容摘要和分类整理
-
-### 5. 主路由智能体
-- 自然语言意图识别
-- 智能工具选择和路由
-- 多工具协同调用和结果整合
-
-## 📊 API 端点
-
-### 统一查询入口 (推荐)
-```
-POST /ask_agent
-```
-智能路由到合适的工具，支持复杂查询和多工具协同。
-
-### 独立工具端点
-- `POST /query_electricity_price` - 电价查询
-- `POST /query_power_generation_duration` - 发电小时数查询
-- `POST /query_photovoltaic_capacity` - 光伏承载力查询
-- `POST /query_policies` - 政策查询
-
-### 系统端点
-- `GET /health` - 健康检查
-- `GET /docs` - API文档 (Swagger UI)
-
-## 🧪 测试用例
-
-### 单一工具调用
-```bash
-curl -X POST "http://localhost:8000/ask_agent" \
-  -H "Content-Type: application/json" \
-  -d '{"query": "安徽淮南的工商电价是多少？"}'
+-- 查看回款业绩数据
+SELECT * FROM h1_collections_performance;
 ```
 
-### 复杂查询
-```bash
-curl -X POST "http://localhost:8000/ask_agent" \
-  -H "Content-Type: application/json" \
-  -d '{"query": "查找全国范围内关于户用屋顶光伏的并网接入政策"}'
-```
+## 交付物说明
 
-### 多工具协同
-```bash
-curl -X POST "http://localhost:8000/ask_agent" \
-  -H "Content-Type: application/json" \
-  -d '{"query": "我想了解一下河南开封的光伏承载力，顺便再看看那边有什么相关的补贴政策。"}'
-```
+### 1. setup.sql
+- 创建数据库表结构
+- 插入从PPT提取的实际数据
+- 设置索引和权限
+- 包含数据验证查询
 
-## 🏗️ 系统架构
+### 2. OCT_PoC_Workflow.json
+- n8n工作流配置文件
+- 包含PostgreSQL查询节点
+- 包含Excel生成节点
+- 支持中文列名和工作表名称
 
-```
-用户查询 → FastAPI服务 → 主路由智能体 → 工具选择 → 具体工具执行 → 结果整合 → 用户响应
-```
+### 3. poc_extraction_report.xlsx
+- 双工作表Excel文件
+- "结转业绩"工作表：包含项目结转数据
+- "回款业绩"工作表：包含项目回款数据
+- 专业格式化和样式
 
-### 技术栈
-- **AI框架**: LangChain
-- **服务框架**: FastAPI
-- **语言模型**: OpenAI GPT-3.5-turbo
-- **HTTP客户端**: requests
-- **数据验证**: Pydantic
+## 技术特点
 
-## 📁 项目结构
+### 数据完整性
+- 从PPT文件中准确提取表格数据
+- 保持原始数据的完整性和格式
+- 支持中文项目名称和字段名
 
-```
-daxiazhaoguang-ai/
-├── main.py                           # FastAPI主服务
-├── main_router_agent.py              # 主路由智能体
-├── electricity_price_tool.py         # 电价查询工具
-├── power_generation_duration_tool.py # 发电小时数查询工具
-├── photovoltaic_capacity_tool.py     # 光伏承载力查询工具
-├── policy_query_tool.py              # 政策查询工具
-├── requirements.txt                  # 依赖包清单
-├── .env                             # 环境变量配置
-├── README.md                        # 项目说明
-├── API_DOCUMENTATION.md             # API文档
-├── DEPLOYMENT_GUIDE.md              # 部署指南
-└── DELIVERABLE_PACKAGE.md           # 交付物说明
-```
+### 自动化流程
+- Docker容器化部署
+- 自动化数据库设置
+- 一键生成Excel报告
+- n8n可视化工作流
 
-## 🔧 配置说明
+### 扩展性设计
+- 模块化代码结构
+- 易于添加新的数据表
+- 支持不同数据源集成
+- 可配置的报告格式
 
-### Mock模式
-系统支持Mock模式，无需外部API即可演示所有功能：
-- 在各工具文件中设置 `USE_MOCK_DATA = True`
-- 适用于演示、测试和开发环境
+## 项目数据概览
 
-### 生产模式
-- 配置真实的API token和OpenAI key
-- 设置 `USE_MOCK_DATA = False`
-- 确保网络连接到外部API服务
+### 主要项目
+- **水月周庄**: 昆山康盛核心住宅项目
+- **水月源岸**: 昆山康盛主要收入来源
+- **铂尔曼酒店**: 酒店业务板块
+- **滁州欢乐明湖**: 滁州康金项目
 
-## 📈 性能特性
+### 关键指标
+- 上半年总收入: 54,484万元
+- 下半年预计收入: 51,737万元
+- 年度回款目标: 255,255万元
+- 上半年实际回款: 62,569万元
 
-- **响应时间**: 单次查询通常在2-5秒内完成
-- **并发支持**: 异步处理，支持多并发请求
-- **容错能力**: Mock模式确保高可用性
-- **扩展性**: 模块化设计，易于添加新功能
-
-## 🛡️ 安全特性
-
-- 环境变量管理敏感信息
-- 输入验证和参数清理
-- HTTPS外部API调用
-- 错误信息安全处理
-
-## 📚 文档资源
-
-- [API文档](API_DOCUMENTATION.md) - 完整的API接口说明
-- [部署指南](DEPLOYMENT_GUIDE.md) - 详细的部署和运维指南
-- [交付物说明](DELIVERABLE_PACKAGE.md) - 项目交付物清单
-
-## 🤝 贡献指南
-
-1. Fork 项目
-2. 创建功能分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 开启 Pull Request
-
-## 📄 许可证
-
-本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情
-
-## 📞 联系我们
-
-- **项目负责人**: LucasLv
-- **开发团队**: Devin AI
-- **版本**: v1.0.0
-- **发布日期**: 2025年7月24日
-
----
-
-⭐ 如果这个项目对您有帮助，请给我们一个星标！
+## 联系信息
+本PoC项目由Devin AI开发，用于演示华侨城项目的数据提取和报告生成能力。

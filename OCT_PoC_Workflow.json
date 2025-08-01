@@ -1,0 +1,173 @@
+{
+  "name": "OCT PoC Data Extraction Workflow",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "start-node",
+      "name": "Start",
+      "type": "n8n-nodes-base.start",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n  project_name as \"项目名称\",\n  period as \"期间\",\n  units_transferred as \"结转套数\",\n  revenue as \"收入(万元)\",\n  gross_profit as \"毛利(万元)\",\n  taxes_and_surcharges as \"税金及附加(万元)\",\n  period_expenses as \"期间费用(万元)\",\n  net_profit as \"净利润(万元)\"\nFROM h1_carry_over_performance\nORDER BY \n  CASE \n    WHEN period = '上半年实际' THEN 1 \n    WHEN period = '下半年预计' THEN 2 \n    ELSE 3 \n  END,\n  project_name",
+        "additionalFields": {
+          "mode": "independently"
+        }
+      },
+      "id": "postgres-carry-over",
+      "name": "查询结转业绩数据",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [460, 200],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-oct-poc",
+          "name": "OCT PoC Database"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n  project_name as \"项目名称\",\n  annual_target as \"全年目标(万元)\",\n  h1_budget as \"上半年预算(万元)\",\n  h1_actual as \"上半年实际(万元)\",\n  h1_completion_rate as \"上半年完成率\",\n  annual_completion_rate as \"年度完成率\"\nFROM h1_collections_performance\nORDER BY \n  CASE \n    WHEN project_name = '合计' THEN 999\n    WHEN project_name = '小计' THEN 998\n    ELSE 1\n  END,\n  project_name",
+        "additionalFields": {
+          "mode": "independently"
+        }
+      },
+      "id": "postgres-collections",
+      "name": "查询回款业绩数据",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [460, 400],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-oct-poc",
+          "name": "OCT PoC Database"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll",
+        "options": {
+          "includeUnpaired": true
+        }
+      },
+      "id": "merge-data",
+      "name": "合并数据",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {
+          "fileName": "poc_extraction_report.xlsx",
+          "sheetName": "结转业绩",
+          "headerRow": 1
+        },
+        "jsonInput": "={{ $('查询结转业绩数据').all() }}",
+        "additionalOptions": {
+          "sheets": [
+            {
+              "sheetName": "回款业绩",
+              "data": "={{ $('查询回款业绩数据').all() }}"
+            }
+          ]
+        }
+      },
+      "id": "create-excel",
+      "name": "生成Excel报告",
+      "type": "n8n-nodes-base.spreadsheetFile",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "fileName": "poc_extraction_report.xlsx",
+        "options": {}
+      },
+      "id": "save-file",
+      "name": "保存文件",
+      "type": "n8n-nodes-base.writeBinaryFile",
+      "typeVersion": 1,
+      "position": [1120, 300]
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "查询结转业绩数据",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "查询回款业绩数据",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "查询结转业绩数据": {
+      "main": [
+        [
+          {
+            "node": "合并数据",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "查询回款业绩数据": {
+      "main": [
+        [
+          {
+            "node": "合并数据",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "合并数据": {
+      "main": [
+        [
+          {
+            "node": "生成Excel报告",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "生成Excel报告": {
+      "main": [
+        [
+          {
+            "node": "保存文件",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2025-08-01T01:52:09.000Z",
+  "versionId": "1"
+}
