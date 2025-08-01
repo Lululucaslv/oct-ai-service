@@ -9,6 +9,11 @@ services:
       - DAXIA_API_TOKEN=${DAXIA_API_TOKEN}
       - AUTHORIZATION_TOKEN=${AUTHORIZATION_TOKEN}
       - USE_MOCK_DATA=${USE_MOCK_DATA:-False}
+      - WECHAT_CORP_ID=${WECHAT_CORP_ID}
+      - WECHAT_APP_SECRET=${WECHAT_APP_SECRET}
+      - WECHAT_AGENT_ID=${WECHAT_AGENT_ID}
+      - WECHAT_TOKEN=${WECHAT_TOKEN}
+      - WECHAT_ENCODING_AES_KEY=${WECHAT_ENCODING_AES_KEY}
     env_file:
       - .env
     restart: unless-stopped
@@ -20,38 +25,43 @@ services:
       start_period: 40s
     volumes:
       - ./logs:/app/logs
+      - ./knowledge_base:/app/knowledge_base
+      - ./vector_store:/app/vector_store
     networks:
       - daxiazhaoguang-network
 
   litellm-proxy:
     image: ghcr.io/berriai/litellm:main-stable
     ports:
-      - "4000:4000" # 将代理的4000端口暴露给主机
+      - "4000:4000"
     environment:
       - LITELLM_CONFIG_PATH=/app/litellm_config.yaml
     volumes:
-      - ./litellm_config.yaml:/app/litellm_config.yaml # 将配置文件挂载到容器中
+      - ./litellm_config.yaml:/app/litellm_config.yaml
     depends_on:
-      - daxiazhaoguang-ai # 确保我们的AI服务先启动
+      - daxiazhaoguang-ai
     networks:
       - daxiazhaoguang-network
 
   open-webui:
     image: ghcr.io/open-webui/open-webui:main
     ports:
-      - "3000:8080" # Open WebUI端口映射
+      - "3000:8080"
     environment:
-      - OPENAI_API_BASE_URL=http://daxiazhaoguang-ai:8000/v1 # 直接连接到FastAPI服务
-      - OPENAI_API_KEY=sk-fake-key # 虚拟API密钥
-      - WEBUI_AUTH=False # 禁用登录以简化测试
-      - ENABLE_SIGNUP=False # 禁用用户注册
-      - ENABLE_LOGIN_FORM=False # 禁用登录表单
-      - DEFAULT_USER_ROLE=admin # 设置默认用户角色为管理员
-      - ENABLE_OPENAI_API=true # 启用OpenAI API支持
+      - OPENAI_API_BASE_URL=http://daxiazhaoguang-ai:8000/v1
+      - OPENAI_API_KEY=sk-fake-key
+      - WEBUI_AUTH=False
+      - ENABLE_SIGNUP=False
+      - ENABLE_LOGIN_FORM=False
+      - DEFAULT_USER_ROLE=admin
+      - ENABLE_OPENAI_API=true
+      - ENABLE_OLLAMA_API=false
+      - OLLAMA_BASE_URL=""
+      - WEBUI_URL=https://electricity-price-tool-tunnel-1cv1wqvg.devinapps.com
     volumes:
-      - open-webui-data:/app/backend/data # 持久化数据存储
+      - open-webui-data:/app/backend/data
     depends_on:
-      - daxiazhaoguang-ai # 确保AI服务先启动
+      - daxiazhaoguang-ai
     networks:
       - daxiazhaoguang-network
     restart: unless-stopped

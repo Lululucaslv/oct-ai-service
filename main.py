@@ -6,15 +6,33 @@ import json
 import uuid
 import time
 from typing import Dict, Optional, List
+import logging
+
+logger = logging.getLogger(__name__)
 from electricity_price_tool import create_electricity_price_tool
 from power_generation_duration_tool import create_power_generation_duration_tool
 from photovoltaic_capacity_tool import create_photovoltaic_capacity_tool
 from policy_query_tool import create_policy_query_tool
 from main_router_agent import create_main_router_agent, MainRouterAgent
 from oct_database_agent import get_oct_agent
+from wechat_rag_agent import get_wechat_rag_agent
+from wechat_api_handler import get_wechat_api_handler
 from pydantic import BaseModel
+from fastapi import Request, Form, Query, HTTPException
 
 app = FastAPI(title="大侠找光 AI 工具集", description="电价查询工具API服务")
+
+class WeChatMessageRequest(BaseModel):
+    user_id: str
+    content: str
+    is_group: bool = False
+
+class WeChatRAGRequest(BaseModel):
+    message: str
+    user_id: str = "default"
+
+class OCTQueryRequest(BaseModel):
+    query: str
 
 app.add_middleware(
     CORSMiddleware,
@@ -206,7 +224,16 @@ async def get_oct_database_info():
 async def health_check():
     return {
         "status": "healthy", 
-        "services": ["electricity_price_tool", "power_generation_duration_tool", "photovoltaic_capacity_tool", "policy_query_tool", "main_router_agent", "oct_database_agent"],
+        "services": {
+            "electricity_price_tool": "电价查询工具",
+            "power_generation_duration_tool": "发电小时数查询工具", 
+            "photovoltaic_capacity_tool": "光伏承载力查询工具",
+            "policy_query_tool": "政策查询工具",
+            "main_router_agent": "主路由智能体",
+            "oct_database_agent": "华侨城数据库问答智能体",
+            "wechat_rag_agent": "企业微信RAG智能体",
+            "wechat_api_handler": "企业微信API处理器"
+        },
         "active_sessions": len(session_agents)
     }
 
@@ -342,6 +369,112 @@ async def chat_completions(request: ChatCompletionRequest):
                 "code": "internal_error"
             }
         }
+
+@app.post("/wechat-hook")
+async def wechat_webhook(
+    request: Request,
+    msg_signature: str = Query(None),
+    timestamp: str = Query(None),
+    nonce: str = Query(None),
+    echostr: str = Query(None)
+):
+    """企业微信消息回调端点"""
+    try:
+        wechat_handler = get_wechat_api_handler()
+        
+        if echostr:
+            verification_result = wechat_handler.verify_url(msg_signature, timestamp, nonce, echostr)
+            if verification_result:
+                return verification_result
+            else:
+                raise HTTPException(status_code=400, detail="URL verification failed")
+        
+        body = await request.body()
+        xml_data = body.decode('utf-8')
+        
+        if not wechat_handler.verify_signature(msg_signature, timestamp, nonce, xml_data):
+            raise HTTPException(status_code=400, detail="Signature verification failed")
+        
+        message_data = wechat_handler.parse_message(xml_data)
+        user_message = wechat_handler.extract_user_message(message_data)
+        
+        if not user_message:
+            return "success"
+        
+        rag_agent = get_wechat_rag_agent()
+        response_data = await rag_agent.process_message(
+            user_message['content'], 
+            user_message['from_user']
+        )
+        
+        if response_data['status'] == 'success':
+            await wechat_handler.send_text_message(
+                user_message['from_user'],
+                response_data['assistant_response']
+            )
+        
+        return "success"
+        
+    except Exception as e:
+        logger.error(f"WeChat webhook error: {e}")
+        return "success"
+
+@app.post("/wechat/send-message")
+async def send_wechat_message(request: WeChatMessageRequest):
+    """发送企业微信消息"""
+    try:
+        wechat_handler = get_wechat_api_handler()
+        result = await wechat_handler.send_text_message(
+            request.user_id,
+            request.content,
+            request.is_group
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Error sending WeChat message: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/wechat/rag-chat")
+async def wechat_rag_chat(request: WeChatRAGRequest):
+    """企业微信RAG对话接口"""
+    try:
+        rag_agent = get_wechat_rag_agent()
+        result = await rag_agent.process_message(request.message, request.user_id)
+        return result
+    except Exception as e:
+        logger.error(f"Error in WeChat RAG chat: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/wechat/knowledge-base-info")
+async def get_wechat_knowledge_base_info():
+    """获取企业微信知识库信息"""
+    try:
+        rag_agent = get_wechat_rag_agent()
+        return rag_agent.get_knowledge_base_info()
+    except Exception as e:
+        logger.error(f"Error getting knowledge base info: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/wechat/api-status")
+async def get_wechat_api_status():
+    """获取企业微信API状态"""
+    try:
+        wechat_handler = get_wechat_api_handler()
+        return wechat_handler.get_api_status()
+    except Exception as e:
+        logger.error(f"Error getting WeChat API status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/wechat/clear-history/{user_id}")
+async def clear_wechat_conversation_history(user_id: str):
+    """清除用户对话历史"""
+    try:
+        rag_agent = get_wechat_rag_agent()
+        rag_agent.clear_conversation_history(user_id)
+        return {"status": "success", "message": f"Cleared conversation history for user: {user_id}"}
+    except Exception as e:
+        logger.error(f"Error clearing conversation history: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn
