@@ -17,11 +17,11 @@ logger = logging.getLogger(__name__)
 
 class WeChatAPIHandler:
     def __init__(self):
-        self.corp_id = os.getenv('WECHAT_CORP_ID', '')
-        self.app_secret = os.getenv('WECHAT_APP_SECRET', '')
-        self.agent_id = os.getenv('WECHAT_AGENT_ID', '')
-        self.token = os.getenv('WECHAT_TOKEN', '')
-        self.encoding_aes_key = os.getenv('WECHAT_ENCODING_AES_KEY', '')
+        self.corp_id = os.getenv('WECOM_CORP_ID') or os.getenv('WECHAT_CORP_ID', '')
+        self.app_secret = os.getenv('WECOM_SECRET') or os.getenv('WECHAT_APP_SECRET', '')
+        self.agent_id = os.getenv('WECOM_AGENT_ID') or os.getenv('WECHAT_AGENT_ID', '')
+        self.token = os.getenv('WECOM_TOKEN') or os.getenv('WECHAT_TOKEN', '')
+        self.encoding_aes_key = os.getenv('WECOM_ENCODING_AES_KEY') or os.getenv('WECHAT_ENCODING_AES_KEY', '')
         
         self.access_token = None
         self.access_token_expires = 0
