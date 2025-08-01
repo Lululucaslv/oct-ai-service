@@ -11,6 +11,7 @@ from power_generation_duration_tool import create_power_generation_duration_tool
 from photovoltaic_capacity_tool import create_photovoltaic_capacity_tool
 from policy_query_tool import create_policy_query_tool
 from main_router_agent import create_main_router_agent, MainRouterAgent
+from oct_database_agent import get_oct_agent
 from pydantic import BaseModel
 
 app = FastAPI(title="大侠找光 AI 工具集", description="电价查询工具API服务")
@@ -169,11 +170,43 @@ async def clear_session(request: dict):
         return {"status": "success", "message": f"Session {session_id} memory cleared"}
     return {"status": "error", "message": "Session not found"}
 
+@app.post("/ask_oct")
+async def ask_oct_question(request: QueryRequest):
+    """OCT database Q&A endpoint"""
+    try:
+        oct_agent = get_oct_agent()
+        
+        result = await oct_agent.ask_question(request.query)
+        
+        return {
+            "question": request.query,
+            "answer": result.get("answer", ""),
+            "status": result.get("status", "error"),
+            "success": result.get("status") == "success"
+        }
+        
+    except Exception as e:
+        return {
+            "question": request.query,
+            "answer": f"系统错误: {str(e)}",
+            "status": "error",
+            "success": False
+        }
+
+@app.get("/oct/database_info")
+async def get_oct_database_info():
+    """Get OCT database schema information"""
+    try:
+        oct_agent = get_oct_agent()
+        return oct_agent.get_database_info()
+    except Exception as e:
+        return {"error": str(e), "status": "error"}
+
 @app.get("/health")
 async def health_check():
     return {
         "status": "healthy", 
-        "services": ["electricity_price_tool", "power_generation_duration_tool", "photovoltaic_capacity_tool", "policy_query_tool", "main_router_agent"],
+        "services": ["electricity_price_tool", "power_generation_duration_tool", "photovoltaic_capacity_tool", "policy_query_tool", "main_router_agent", "oct_database_agent"],
         "active_sessions": len(session_agents)
     }
 
