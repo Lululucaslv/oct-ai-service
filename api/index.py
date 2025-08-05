@@ -22,7 +22,7 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "service": "OCT AI Q&A", "version": "1.0.1"}
+    return {"status": "healthy", "service": "OCT AI Q&A", "version": "1.0.2"}
 
 @app.post("/ask_oct")
 async def ask_oct_question(request: QueryRequest):
