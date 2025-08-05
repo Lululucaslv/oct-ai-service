@@ -74,6 +74,3 @@ async def health_check():
         },
         "database": "Supabase PostgreSQL"
     }
-
-def handler(request):
-    return app(request)
