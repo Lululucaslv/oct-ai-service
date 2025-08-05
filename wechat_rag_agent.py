@@ -18,8 +18,8 @@ logger = logging.getLogger(__name__)
 
 class WeChatRAGAgent:
     def __init__(self):
-        self.knowledge_base_path = "/app/knowledge_base"
-        self.vector_store_path = "/app/vector_store"
+        self.knowledge_base_path = "/home/ubuntu/daxiazhaoguang-ai/knowledge_base"
+        self.vector_store_path = "/home/ubuntu/daxiazhaoguang-ai/vector_store"
         self.llm = None
         self.vector_store = None
         self.embeddings = None
