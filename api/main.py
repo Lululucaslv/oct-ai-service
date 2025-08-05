@@ -14,7 +14,10 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 logger = logging.getLogger(__name__)
 
-from oct_database_agent_supabase import get_oct_agent_supabase
+try:
+    from oct_database_agent_supabase import get_oct_agent_supabase
+except ImportError:
+    from api.oct_database_agent_supabase import get_oct_agent_supabase
 from pydantic import BaseModel
 
 app = FastAPI(title="华侨城 AI 问答服务", description="OCT AI Q&A API Service")
