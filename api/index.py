@@ -17,4 +17,4 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "service": "OCT AI Q&A"}
+    return {"status": "healthy", "service": "OCT AI Q&A", "version": "1.0.1"}
