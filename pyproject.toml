@@ -1,0 +1,20 @@
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "oct-ai-service"
+version = "1.0.0"
+description = "OCT AI Q&A Service with Supabase integration"
+authors = ["Devin AI <devin-ai-integration[bot]@users.noreply.github.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+fastapi = "^0.104.1"
+uvicorn = "^0.24.0"
+psycopg2-binary = "^2.9.9"
+python-dotenv = "^1.0.0"
+google-generativeai = ">=0.4.1"
+pydantic = "^2.5.0"
+
+[tool.poetry.dev-dependencies]
